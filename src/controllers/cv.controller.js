@@ -1,4 +1,4 @@
-const fs = require("fs");
+const pdfParse = require("pdf-parse");
 const Profile = require("../models/Profile.js");
 const { groq } = require("../utils/geminiClient.js");
 const logger = require("../utils/logger.js");
@@ -36,18 +36,11 @@ const parseSimple = (text) => {
 //     return "";
 //   }
 // };
+
 const extractPDFText = async (buffer) => {
   try {
-    const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const data = new Uint8Array(buffer);
-    const doc = await getDocument({ data }).promise;
-    let text = "";
-    for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i);
-      const content = await page.getTextContent();
-      text += content.items.map((item) => item.str).join(" ");
-    }
-    return text.substring(0, 5000);
+    const data = await pdfParse(buffer);
+    return data.text.substring(0, 5000);
   } catch (error) {
     logger.error("PDF extraction failed:", error);
     return "";
