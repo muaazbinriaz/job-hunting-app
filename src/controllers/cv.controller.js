@@ -19,10 +19,27 @@ const parseSimple = (text) => {
 };
 
 // Extract text from PDF using pdfjs-dist v5
-const extractPDFText = async (filePath) => {
+// const extractPDFText = async (filePath) => {
+//   try {
+//     const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+//     const data = new Uint8Array(fs.readFileSync(filePath));
+//     const doc = await getDocument({ data }).promise;
+//     let text = "";
+//     for (let i = 1; i <= doc.numPages; i++) {
+//       const page = await doc.getPage(i);
+//       const content = await page.getTextContent();
+//       text += content.items.map((item) => item.str).join(" ");
+//     }
+//     return text.substring(0, 5000);
+//   } catch (error) {
+//     logger.error("PDF extraction failed:", error);
+//     return "";
+//   }
+// };
+const extractPDFText = async (buffer) => {
   try {
     const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const data = new Uint8Array(fs.readFileSync(filePath));
+    const data = new Uint8Array(buffer);
     const doc = await getDocument({ data }).promise;
     let text = "";
     for (let i = 1; i <= doc.numPages; i++) {
@@ -63,33 +80,70 @@ const parseWithGroq = async (text) => {
 };
 
 // Upload CV
+// exports.uploadCV = async (req, res) => {
+//   try {
+//     if (!req.file) return res.status(400).json({ error: "No file" });
+//     if (req.file.mimetype !== "application/pdf") {
+//       fs.unlinkSync(req.file.path);
+//       return res.status(400).json({ error: "Only PDF files" });
+//     }
+
+//     const text = await extractPDFText(req.file.path);
+//     if (!text) {
+//       fs.unlinkSync(req.file.path);
+//       return res.status(400).json({ error: "Could not read PDF" });
+//     }
+
+//     const parsed = await parseWithGroq(text);
+
+//     // Delete old CV file if exists
+//     const existingProfile = await Profile.findOne({ userId: req.userId });
+//     if (existingProfile?.cvUrl && fs.existsSync(existingProfile.cvUrl)) {
+//       fs.unlinkSync(existingProfile.cvUrl);
+//     }
+
+//     const profile = await Profile.findOneAndUpdate(
+//       { userId: req.userId },
+//       {
+//         userId: req.userId,
+//         cvUrl: req.file.path,
+//         summary: parsed.summary || "",
+//         skills: parsed.skills || [],
+//         experience: parsed.experience || [],
+//         education: parsed.education || [],
+//         cachedJobs: [],
+//         jobsCachedAt: null,
+//       },
+//       { upsert: true, new: true },
+//     );
+
+//     res.json({ message: "CV uploaded successfully", profile });
+//   } catch (error) {
+//     logger.error("Upload error:", error);
+//     if (req.file) fs.unlinkSync(req.file.path);
+//     res.status(500).json({ error: "Upload failed" });
+//   }
+// };
 exports.uploadCV = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file" });
     if (req.file.mimetype !== "application/pdf") {
-      fs.unlinkSync(req.file.path);
       return res.status(400).json({ error: "Only PDF files" });
     }
 
-    const text = await extractPDFText(req.file.path);
+    // Use buffer directly (memory storage - no disk needed)
+    const text = await extractPDFText(req.file.buffer);
     if (!text) {
-      fs.unlinkSync(req.file.path);
       return res.status(400).json({ error: "Could not read PDF" });
     }
 
     const parsed = await parseWithGroq(text);
 
-    // Delete old CV file if exists
-    const existingProfile = await Profile.findOne({ userId: req.userId });
-    if (existingProfile?.cvUrl && fs.existsSync(existingProfile.cvUrl)) {
-      fs.unlinkSync(existingProfile.cvUrl);
-    }
-
     const profile = await Profile.findOneAndUpdate(
       { userId: req.userId },
       {
         userId: req.userId,
-        cvUrl: req.file.path,
+        cvUrl: "memory-upload",
         summary: parsed.summary || "",
         skills: parsed.skills || [],
         experience: parsed.experience || [],
@@ -103,7 +157,6 @@ exports.uploadCV = async (req, res) => {
     res.json({ message: "CV uploaded successfully", profile });
   } catch (error) {
     logger.error("Upload error:", error);
-    if (req.file) fs.unlinkSync(req.file.path);
     res.status(500).json({ error: "Upload failed" });
   }
 };
@@ -121,12 +174,21 @@ exports.getProfile = async (req, res) => {
 };
 
 // Delete profile
+// exports.deleteProfile = async (req, res) => {
+//   try {
+//     const profile = await Profile.findOneAndDelete({ userId: req.userId });
+//     if (profile?.cvUrl && fs.existsSync(profile.cvUrl)) {
+//       fs.unlinkSync(profile.cvUrl);
+//     }
+//     res.json({ message: "Deleted" });
+//   } catch (error) {
+//     logger.error("Error:", error);
+//     res.status(500).json({ error: "Error" });
+//   }
+// };
 exports.deleteProfile = async (req, res) => {
   try {
-    const profile = await Profile.findOneAndDelete({ userId: req.userId });
-    if (profile?.cvUrl && fs.existsSync(profile.cvUrl)) {
-      fs.unlinkSync(profile.cvUrl);
-    }
+    await Profile.findOneAndDelete({ userId: req.userId });
     res.json({ message: "Deleted" });
   } catch (error) {
     logger.error("Error:", error);
