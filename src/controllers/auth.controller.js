@@ -93,7 +93,6 @@ const register = async (req, res) => {
       user: buildUserResponse(newUser),
     });
   } catch (error) {
-    // Property-based error checks instead of instanceof
     if (error && error.isOperational && error.statusCode === 400) {
       res.status(error.statusCode).json({
         message: error.message,
